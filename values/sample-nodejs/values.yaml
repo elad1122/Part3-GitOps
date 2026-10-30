@@ -1,6 +1,0 @@
-# Cluster-specific overrides for the chart in Part2-Application (helm/sample-nodejs).
-# Everything else, including the image tag (the chart's appVersion), comes from the chart.
-replicaCount: 2
-
-ingress:
-  host: app.34.56.31.129.nip.io

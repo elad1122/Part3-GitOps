@@ -1,6 +1,7 @@
 # Argo CD Application for the sample Node.js app.
-# The CI/CD pipeline deploys a release by changing the chart's targetRevision below. The chart's
-# appVersion is the default image tag, so that one line moves the chart and the image together.
+# Deploys the chart and its values.yaml from the app repo, following the newest release tag.
+# Release tags are created by the CI/CD pipeline only after every security gate has passed and
+# the image was pushed. The chart's appVersion at that tag is the image tag.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -10,17 +11,12 @@ metadata:
     - resources-finalizer.argocd.argoproj.io   # deleting the Application removes its resources
 spec:
   project: sample-nodejs
-  sources:
-    - repoURL: https://github.com/elad1122/Part2-Application.git
-      path: helm/sample-nodejs
-      targetRevision: v1.0.0
-      helm:
-        releaseName: sample-nodejs
-        valueFiles:
-          - $values/values/sample-nodejs/values.yaml
-    - repoURL: https://github.com/elad1122/Part3-GitOps.git
-      targetRevision: main
-      ref: values
+  source:
+    repoURL: https://github.com/elad1122/Part2-Application.git
+    path: helm/sample-nodejs
+    targetRevision: ">=1.0.0"   # newest vX.Y.Z tag; set to an exact tag such as v1.0.0 to pin
+    helm:
+      releaseName: sample-nodejs
   destination:
     server: https://kubernetes.default.svc
     namespace: default

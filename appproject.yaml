@@ -1,17 +1,14 @@
-# Least privilege for this app: only these two repos, only the default namespace,
+# Least privilege for this app: only the app repo, only the default namespace,
 # only the namespaced resource kinds the chart creates, and no cluster-scoped resources.
 apiVersion: argoproj.io/v1alpha1
 kind: AppProject
 metadata:
   name: sample-nodejs
   namespace: argocd
-  annotations:
-    argocd.argoproj.io/sync-wave: "-1"   # create the project before the Application that uses it
 spec:
   description: Sample Node.js application
   sourceRepos:
-    - https://github.com/elad1122/Part2-Application.git   # Helm chart
-    - https://github.com/elad1122/Part3-GitOps.git        # values
+    - https://github.com/elad1122/Part2-Application.git
   destinations:
     - server: https://kubernetes.default.svc
       namespace: default
