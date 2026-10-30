@@ -72,16 +72,22 @@ To return to automatic deployments, restore `">=1.0.0"` and apply again. While p
 
 ## Verification
 
-First deployment of v1.0.0 through Argo CD:
+**Automatic deployment:** [pipeline run #18](https://github.com/elad1122/Part2-Application/actions/runs/41058937421) passed every gate and created tag `v1.1.0`. With no manual step, Argo CD deployed it:
 ```
+ghcr.io/elad1122/sample-nodejs:1.1.0   Synced/Healthy
+Argo CD revision: 60735a89826c26ec8d4e3e1fd9610732e13da8db
+v1.1.0 commit:    60735a89826c26ec8d4e3e1fd9610732e13da8db
+
 $ kubectl -n argocd get applications
 NAME            SYNC STATUS   HEALTH STATUS
 mongodb         Synced        Healthy
 sample-nodejs   Synced        Healthy
+```
 
-$ kubectl -n default get pods -l app.kubernetes.io/instance=sample-nodejs
-sample-nodejs-55d89fc5db-7qf9s   1/1   Running   0
-sample-nodejs-55d89fc5db-kgn8q   1/1   Running   0
+**Rollback:** pinning `v1.0.0` returned the cluster to the old image, and restoring `">=1.0.0"` returned it to the newest release:
+```
+pin v1.0.0     -> ghcr.io/elad1122/sample-nodejs:1.0.0   Synced/Healthy   2/2 replicas
+restore >=1.0.0 -> ghcr.io/elad1122/sample-nodejs:1.1.0   Synced/Healthy   2/2 replicas
 ```
 
 Through the Ingress:
@@ -91,7 +97,7 @@ Through the Ingress:
 ```
 
 - **Headers:** `X-Powered-By` is removed; `X-Frame-Options`, `X-Content-Type-Options` and `Referrer-Policy` are added.
-- **Pods:** image `ghcr.io/elad1122/sample-nodejs:1.0.0`, uid 65532, read-only filesystem, about 23 MiB of memory each.
+- **Pods:** uid 65532, read-only filesystem, about 23 MiB of memory each.
 
 ## Limitations
 
