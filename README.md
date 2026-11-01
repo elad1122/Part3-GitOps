@@ -63,7 +63,7 @@ merge to main (Part2-Application)
 
 ## Sync policy and projects
 
-- **Automated sync:** `prune` removes what's deleted from Git, and `selfHeal` reverts manual changes on the cluster. The root app applies this to the Applications themselves.
+- **Automated sync:** `prune` removes what's deleted from Git, and `selfHeal` reverts manual changes to anything Git defines. Fields that Git doesn't define are ignored. The root app applies this to the Applications themselves.
 - **Restricted AppProjects:** each app can use only its own sources, only the `default` namespace (the assignment's requirement), and only the resource kinds its chart creates, with no cluster-scoped resources. Sync waves create each project before its Application.
 - **Ingress health rule:** Traefik here binds hostPorts and publishes no address, so Argo CD's default check would never finish. The rule is in [Part 1's Argo CD values](https://github.com/elad1122/Part1-Infrastucture/blob/main/argocd/values.yaml).
 
@@ -85,11 +85,30 @@ kubectl -n argocd get applications
 ```yaml
 targetRevision: v1.0.0
 ```
-To return to automatic deployments, restore `">=1.0.0"` and push. While pinned, new releases are not deployed. Don't use `helm rollback`, `kubectl edit` or `kubectl apply` for this, because `selfHeal` reverts anything that doesn't match Git.
+To return to automatic deployments, restore `">=1.0.0"` and push. While pinned, new releases are not deployed. Don't use `helm rollback`, `kubectl edit` or `kubectl apply` for this, because `selfHeal` reverts changes to what Git defines.
 
 ## Verification
 
-Results from before the move to app of apps, when the Application was applied by hand:
+**App of apps:** applying `root-app.yaml` adopted the running apps without recreating them. All three MongoDB pods kept the same UIDs, so nothing restarted:
+```
+$ kubectl -n argocd get applications
+NAME            SYNC STATUS   HEALTH STATUS
+mongodb         Synced        Healthy
+root            Synced        Healthy
+sample-nodejs   Synced        Healthy
+
+root manages: AppProject/mongodb, AppProject/sample-nodejs, Application/mongodb, Application/sample-nodejs
+
+rs.status():
+10.10.0.11:30017 PRIMARY
+10.10.0.13:30018 SECONDARY
+10.10.0.12:30019 SECONDARY
+```
+
+- **Self-heal:** I changed `retry.limit` on the live Application by hand, and the root app restored the Git value in about 5 seconds.
+- **MongoDB access:** NodePorts 30017, 30018 and 30019 and metrics on 30216 answer from outside the cluster.
+
+The results below are from before the move to app of apps, when the Application was applied by hand:
 
 **Automatic deployment:** [pipeline run #18](https://github.com/elad1122/Part2-Application/actions/runs/41058937421) passed every gate and created tag `v1.1.0`. With no manual step, Argo CD deployed it:
 ```
