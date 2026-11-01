@@ -1,17 +1,20 @@
 # Part3-GitOps
 
-The infra repo for the sample Node.js app. It holds the Argo CD configuration that deploys the app.
+The infra repo for the cluster's applications. It holds the Argo CD configuration that deploys the sample Node.js app and MongoDB, using the **app of apps** pattern.
 
 | File | Purpose |
 |---|---|
-| [`appproject.yaml`](appproject.yaml) | `AppProject`: what this app may deploy, and where |
-| [`application.yaml`](application.yaml) | `Application`: what to deploy (chart from the app repo) and how to sync it |
+| [`root-app.yaml`](root-app.yaml) | Root `Application`: applied by hand once, then manages everything else in this repo |
+| [`sample-nodejs/appproject.yaml`](sample-nodejs/appproject.yaml) | `AppProject`: what the app may deploy, and where |
+| [`sample-nodejs/application.yaml`](sample-nodejs/application.yaml) | `Application`: the chart from Part2-Application, following release tags |
+| [`mongodb/appproject.yaml`](mongodb/appproject.yaml) | `AppProject`: what MongoDB may deploy, and where |
+| [`mongodb/application.yaml`](mongodb/application.yaml) | `Application`: the Bitnami chart, with values from Part1-Infrastucture |
 
 | Repo | Holds |
 |---|---|
-| [Part1-Infrastucture](https://github.com/elad1122/Part1-Infrastucture) | The RKE2 cluster, Argo CD, MongoDB |
+| [Part1-Infrastucture](https://github.com/elad1122/Part1-Infrastucture) | The RKE2 cluster, Argo CD, MongoDB's values and chart-repo Secret |
 | [Part2-Application](https://github.com/elad1122/Part2-Application) | App code, Helm chart with its `values.yaml`, CI/CD pipeline |
-| **Part3-GitOps** (this repo) | The Argo CD `AppProject` and `Application` |
+| **Part3-GitOps** (this repo) | The Argo CD root app, `AppProject`s and `Application`s |
 
 App URL: `http://app.34.56.31.129.nip.io/my-app`
 
@@ -24,9 +27,24 @@ The assignment allows either. I chose a separate repo because:
 | **Separation of concerns** | The app repo describes the app; this repo describes how the cluster deploys it |
 | **Access control** | Who can change deployment rules (allowed repos, namespace, sync policy) can be managed apart from who can change code |
 | **No CI noise** | Changes here don't run the app's pipeline, and app commits don't touch the deployment rules |
-| **Room to grow** | More apps or environments can be added here as more manifests |
+| **Room to grow** | More apps or environments can be added here as more folders |
 
-**Trade-off:** one more repo to maintain, and these two files are applied by hand (below). The structure is deliberately simple: no app-of-apps, so a change to the files here takes effect only after `kubectl apply`.
+**Trade-off:** one more repo to maintain.
+
+## Why app of apps
+
+Argo CD watches the sources an Application points to, not the file that defines the Application. Without a parent, a change to a file here would do nothing until someone ran `kubectl apply`.
+
+The root app watches this repo, so **a commit here is all it takes**: changing a manifest, adding an app, or removing one. After the one bootstrap command, the cluster's Argo CD configuration comes entirely from Git, and rebuilding means applying the root app again.
+
+## Secrets: why no repo credentials are needed here
+
+I didn't need to create a Secret to connect Argo CD to these repositories:
+
+- **Part2-Application is public**, so Argo CD can read the sample app's chart without credentials. The same is true of this repo and Part1-Infrastucture, which provides MongoDB's values.
+- **MongoDB's chart repo uses the Secret in Part1-Infrastucture**: [`argocd/repositories/bitnami-oci.yaml`](https://github.com/elad1122/Part1-Infrastucture/blob/main/argocd/repositories/bitnami-oci.yaml). It registers Bitnami's OCI registry with Argo CD (`enableOCI: "true"`). The registry is public, so this Secret holds no password, which is why it's safe in Git.
+
+Only one real credential exists: `mongodb-auth`, MongoDB's own root password and replica-set key. It's created directly on the cluster and is never in Git.
 
 ## How a release reaches the cluster
 
@@ -41,36 +59,37 @@ merge to main (Part2-Application)
 - **A blocked build can't deploy:** the tag is created only after every gate and the image push have passed. Commits to `main` alone don't deploy anything.
 - **One tag moves everything:** the chart at tag `vX.Y.Z` has `appVersion: X.Y.Z`, which is the default image tag, so the chart and image can't get out of step.
 - **No credentials in CI:** the pipeline holds no cluster credentials and no key for this repo. Argo CD pulls from the public repo.
-- **One values file:** settings live only in `helm/sample-nodejs/values.yaml` in the app repo, so they're versioned with each release.
+- **One values file per app:** the app's settings live only in `helm/sample-nodejs/values.yaml` in Part2-Application, and MongoDB's only in `mongodb/values.yaml` in Part1-Infrastucture.
 
-## Sync policy and project
+## Sync policy and projects
 
-- **Automated sync:** `prune` removes what's deleted from the chart, `selfHeal` reverts manual changes on the cluster, and failed syncs retry 3 times.
-- **Restricted AppProject:** only the app repo, only the `default` namespace (the assignment's requirement), only the resource kinds the chart creates, and no cluster-scoped resources.
+- **Automated sync:** `prune` removes what's deleted from Git, and `selfHeal` reverts manual changes on the cluster. The root app applies this to the Applications themselves.
+- **Restricted AppProjects:** each app can use only its own sources, only the `default` namespace (the assignment's requirement), and only the resource kinds its chart creates, with no cluster-scoped resources. Sync waves create each project before its Application.
 - **Ingress health rule:** Traefik here binds hostPorts and publishes no address, so Argo CD's default check would never finish. The rule is in [Part 1's Argo CD values](https://github.com/elad1122/Part1-Infrastucture/blob/main/argocd/values.yaml).
 
 ## Steps
 
-**1. Install (once, and again after changing a file here):**
+**1. Install (once).** Argo CD, the Bitnami repo Secret and `mongodb-auth` must exist first; see [Part 1's README](https://github.com/elad1122/Part1-Infrastucture#mongodb). Then:
 ```bash
-kubectl apply -f appproject.yaml -f application.yaml
+kubectl apply -f root-app.yaml
 kubectl -n argocd get applications
 ```
 
-**2. Deploy:** merge a `feat:` or `fix:` commit to `main` in Part2-Application. Nothing else is needed.
+**2. Deploy the app:** merge a `feat:` or `fix:` commit to `main` in Part2-Application. Nothing else is needed.
 
-**3. Change settings:** edit `helm/sample-nodejs/values.yaml` in Part2-Application and release. Settings take effect with the release, because Argo CD reads the chart at the tag.
+**3. Change settings:**
+- **App:** edit `helm/sample-nodejs/values.yaml` in Part2-Application and release. Settings take effect with the release, because Argo CD reads the chart at the tag.
+- **MongoDB:** edit `mongodb/values.yaml` in Part1-Infrastucture and push to `main`. Note that MongoDB has no persistence, so a change that restarts its pods can lose data.
 
-**4. Roll back:** pin an exact tag in `application.yaml` and apply it:
+**4. Roll back the app:** pin an exact tag in `sample-nodejs/application.yaml`, then commit and push:
 ```yaml
 targetRevision: v1.0.0
 ```
-```bash
-kubectl apply -f application.yaml
-```
-To return to automatic deployments, restore `">=1.0.0"` and apply again. While pinned, new releases are not deployed. Don't use `helm rollback` or `kubectl edit`, because `selfHeal` reverts anything that doesn't match the chart.
+To return to automatic deployments, restore `">=1.0.0"` and push. While pinned, new releases are not deployed. Don't use `helm rollback`, `kubectl edit` or `kubectl apply` for this, because `selfHeal` reverts anything that doesn't match Git.
 
 ## Verification
+
+Results from before the move to app of apps, when the Application was applied by hand:
 
 **Automatic deployment:** [pipeline run #18](https://github.com/elad1122/Part2-Application/actions/runs/41058937421) passed every gate and created tag `v1.1.0`. With no manual step, Argo CD deployed it:
 ```
@@ -101,7 +120,6 @@ Through the Ingress:
 
 ## Limitations
 
-- **Sync delay:** Argo CD polls, because GitHub webhooks can't reach it through the firewall. Deployments appear within about 3 minutes.
+- **Sync delay:** Argo CD polls, because GitHub webhooks can't reach it through the firewall. Changes appear within about 3 minutes.
 - **Access:** the app URL is reachable only from IPs allowed by the GCP firewall.
-- **Manual apply:** changes to the two files here need `kubectl apply`. App-of-apps would automate that, but it isn't needed for one app.
 - **One environment:** a staging environment would be another Application here, with its own values file in the chart.

@@ -5,6 +5,8 @@ kind: AppProject
 metadata:
   name: sample-nodejs
   namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"   # create the project before the Application that uses it
 spec:
   description: Sample Node.js application
   sourceRepos:
