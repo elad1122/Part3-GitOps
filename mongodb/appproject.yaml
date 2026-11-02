@@ -1,0 +1,25 @@
+# Least privilege for MongoDB: only its chart registry and values repo, only the default
+# namespace, only the namespaced resource kinds the chart creates, no cluster-scoped resources.
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: mongodb
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"   # create the project before the Application that uses it
+spec:
+  description: Bitnami MongoDB
+  sourceRepos:
+    - registry-1.docker.io/bitnamicharts                  # Helm chart
+    - https://github.com/elad1122/Part1-Infrastucture.git # values
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: default
+  clusterResourceWhitelist: []
+  namespaceResourceWhitelist:
+    - { group: "", kind: ConfigMap }
+    - { group: "", kind: Service }
+    - { group: "", kind: ServiceAccount }
+    - { group: apps, kind: StatefulSet }
+    - { group: networking.k8s.io, kind: NetworkPolicy }
+    - { group: policy, kind: PodDisruptionBudget }

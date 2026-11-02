@@ -1,0 +1,24 @@
+# Root ("app of apps"). The only manifest applied by hand, once:
+#   kubectl apply -f root-app.yaml
+# It watches this repo, so every AppProject and Application here is managed from Git.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: root
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/elad1122/Part3-GitOps.git
+    targetRevision: main
+    path: .
+    directory:
+      recurse: true
+      exclude: root-app.yaml   # the root app doesn't manage itself
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
