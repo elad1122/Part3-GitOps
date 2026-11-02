@@ -70,38 +70,3 @@ kubectl apply -f application.yaml
 ```
 To return to automatic deployments, restore `">=1.0.0"` and apply again. While pinned, new releases are not deployed. Don't use `helm rollback` or `kubectl edit`, because `selfHeal` reverts anything that doesn't match the chart.
 
-## Verification
-
-**Automatic deployment:** [pipeline run #18](https://github.com/elad1122/Part2-Application/actions/runs/41058937421) passed every gate and created tag `v1.1.0`. With no manual step, Argo CD deployed it:
-```
-ghcr.io/elad1122/sample-nodejs:1.1.0   Synced/Healthy
-Argo CD revision: 60735a89826c26ec8d4e3e1fd9610732e13da8db
-v1.1.0 commit:    60735a89826c26ec8d4e3e1fd9610732e13da8db
-
-$ kubectl -n argocd get applications
-NAME            SYNC STATUS   HEALTH STATUS
-mongodb         Synced        Healthy
-sample-nodejs   Synced        Healthy
-```
-
-**Rollback:** pinning `v1.0.0` returned the cluster to the old image, and restoring `">=1.0.0"` returned it to the newest release:
-```
-pin v1.0.0     -> ghcr.io/elad1122/sample-nodejs:1.0.0   Synced/Healthy   2/2 replicas
-restore >=1.0.0 -> ghcr.io/elad1122/sample-nodejs:1.1.0   Synced/Healthy   2/2 replicas
-```
-
-Through the Ingress:
-```
-/my-app -> 200 "Hello, World!"     /about -> 200
-/classified -> 404   /metrics -> 404   /ready -> 404   /live -> 404
-```
-
-- **Headers:** `X-Powered-By` is removed; `X-Frame-Options`, `X-Content-Type-Options` and `Referrer-Policy` are added.
-- **Pods:** uid 65532, read-only filesystem, about 23 MiB of memory each.
-
-## Limitations
-
-- **Sync delay:** Argo CD polls, because GitHub webhooks can't reach it through the firewall. Deployments appear within about 3 minutes.
-- **Access:** the app URL is reachable only from IPs allowed by the GCP firewall.
-- **Manual apply:** changes to the two files here need `kubectl apply`. App-of-apps would automate that, but it isn't needed for one app.
-- **One environment:** a staging environment would be another Application here, with its own values file in the chart.
