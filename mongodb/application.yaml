@@ -1,12 +1,11 @@
-# Argo CD Application for Bitnami MongoDB 8.0.13 (chart 16.5.45).
-# The chart comes from Bitnami's OCI registry; the values come from Part1-Infrastucture.
+
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
   name: mongodb
   namespace: argocd
   finalizers:
-    - resources-finalizer.argocd.argoproj.io   # deleting the Application removes its resources
+    - resources-finalizer.argocd.argoproj.io
 spec:
   project: mongodb
   sources:
@@ -25,7 +24,7 @@ spec:
     namespace: default
   syncPolicy:
     automated:
-      prune: true      # remove resources that disappear from Git
-      selfHeal: true   # revert manual changes in the cluster
+      prune: true
+      selfHeal: true
     syncOptions:
       - ServerSideApply=true

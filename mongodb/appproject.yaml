@@ -1,5 +1,4 @@
-# Least privilege for MongoDB: only its chart registry and values repo, only the default
-# namespace, only the namespaced resource kinds the chart creates, no cluster-scoped resources.
+
 apiVersion: argoproj.io/v1alpha1
 kind: AppProject
 metadata:
@@ -10,8 +9,8 @@ metadata:
 spec:
   description: Bitnami MongoDB
   sourceRepos:
-    - registry-1.docker.io/bitnamicharts                  # Helm chart
-    - https://github.com/elad1122/Part1-Infrastucture.git # values
+    - registry-1.docker.io/bitnamicharts
+    - https://github.com/elad1122/Part1-Infrastucture.git
   destinations:
     - server: https://kubernetes.default.svc
       namespace: default
